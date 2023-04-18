@@ -213,10 +213,78 @@ class CameraObserver(Observer):
         pass
 
 
-class ConcreteObserverB(Observer):
+class FaceCartographer(Observer, Subject):
+    """
+    The Subject owns some important state and notifies observers when the state
+    changes.
+    """
+    _face: bool = None
+    # _state: int = None
+    _state: CompressedImage = None
+    """
+    For the sake of simplicity, the Subject's state, essential to all
+    subscribers, is stored in this variable.
+    """
+
+    _observers: List[Observer] = []
+    """
+    List of subscribers. In real life, the list of subscribers can be stored
+    more comprehensively (categorized by event type, etc.).
+    """
+
+    def addObserver(self, observer: Observer) -> None:
+        print("Subject: Attached an observer.")
+        self._observers.append(observer)
+
+    def removeObserver(self, observer: Observer) -> None:
+        self._observers.remove(observer)
+
+    """
+    The subscription management methods.
+    """
+
+    def notify(self) -> None:
+        """
+        Trigger an update in each subscriber.
+        """
+
+        print("Subject: Notifying observers...")
+        for observer in self._observers:
+            observer.update(self)
+
+    def setChanged(self, data) -> None:
+        """
+        Usually, the subscription logic is only a fraction of what a Subject can
+        really do. Subjects commonly hold some important business logic, that
+        triggers a notification method whenever something important is about to
+        happen (or after it).
+        """
+
+        print("\nSubject: I'm doing something important.")
+        # self._state = randrange(0, 10)
+        self._state = data
+
+        # print(f"Subject: My state has just changed to: {self._state}")
+        self.notify()
+
     def update(self, subject: Subject) -> None:
-        if subject._state == 0 or subject._state >= 2:
-            print("ConcreteObserverB: Reacted to the event")
+        print("FaceCartographer: Received cameraPerception data")
+        self.detectFace(subject._state)
+
+    def detectFace(self, data):
+        print("Face detected from CameraPerception data: ", data.header)
+        self.setChanged("Symbolic Detected Face :)")
+
+class MirrorBehavior (Observer):
+    coordinates = ""
+    def update(self, subject: Subject) -> None:
+        self.coordinates = subject._state
+        self.motor_output()
+
+    def motor_output(self):
+        print("Motor moves following ", self.coordinates)
+
+    
 
 
 class GracefulKiller:
@@ -504,6 +572,7 @@ if __name__ == '__main__':
     cameraPerception = CameraPerception()
     cameraObserver = CameraObserver()
 
+
     cameraPerception.addObserver(cameraObserver)
 
     # cameraPerception.setChanged(12345)
@@ -511,6 +580,15 @@ if __name__ == '__main__':
     # camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=buddy.callback_2, queue_size=1)
     camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=cameraPerception.setChanged, queue_size=1)
     audio_sub = rospy.Subscriber("/audio", Float32MultiArray, callback= buddy.callback_1, queue_size=1) 
+
+    #Mirror Behavior Main Code
+    mirrorBehavior = MirrorBehavior()
+    faceCartographer = FaceCartographer()
+
+    cameraPerception.addObserver(faceCartographer)
+    faceCartographer.addObserver(mirrorBehavior)
+
+
     # print ("main ",threading.current_thread())
     # init_pos = [0,0,0,0]
     # x = threading.Thread(target=self.motor_control, args=(global_goal, 1))
