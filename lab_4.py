@@ -354,6 +354,8 @@ class FaceCartographer(Observer, Subject):
     changes.
     """
     _face: bool = None
+    previous_image = None
+    new_image = None
     # _state: int = None
     _state: CompressedImage = None
     """
@@ -366,7 +368,9 @@ class FaceCartographer(Observer, Subject):
     List of subscribers. In real life, the list of subscribers can be stored
     more comprehensively (categorized by event type, etc.).
     """
-
+    def __init__(self):
+        x = threading.Thread(target=self.detectFace, args=())
+        x.start()
     def addObserver(self, observer: Observer) -> None:
         print("Subject: Attached an observer.")
         self._observers.append(observer)
@@ -404,31 +408,43 @@ class FaceCartographer(Observer, Subject):
 
     def update(self, subject: Subject) -> None:
         # print("FaceCartographer: Received cameraPerception data")
-        self.detectFace(subject._state)
+        # self.detectFace(subject._state)
+        self.new_image = subject._state
 
-    def detectFace(self, camera_input_data):        
+    def detectFace(self):        
         # print("Face detected from CameraPerception data: ", camera_input_data.header)
-        current_x=0
-        np_arr = np.frombuffer(camera_input_data.data,np.uint8)
-        image = cv2.imdecode(np_arr, 1)
-        cv2.namedWindow("Image Window",1)
-        with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
-            results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            if results.detections:
-                for detection in results.detections:
-                    nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
-                    current_x=nose.x
-        cv2.imshow("Image Window",image)
-        cv2.waitKey(1)
-        self.setChanged(current_x) 
+        while not killer.kill_now:
+            if(self.previous_image != self.new_image):
+                camera_input_data = self.new_image
+                self.previous_image = camera_input_data
+                current_x=0
+                np_arr = np.frombuffer(camera_input_data.data,np.uint8)
+                image = cv2.imdecode(np_arr, 1)
+                cv2.namedWindow("Image Window",1)
+                with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
+                    results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                    if results.detections:
+                        for detection in results.detections:
+                            nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
+                            current_x=nose.x
+                cv2.imshow("Image Window",image)
+                cv2.waitKey(1)
+                self.setChanged(current_x) 
+            time.sleep(0.01) 
+
 
 class MirrorBehavior (Observer):
     coordinates = 0
+    def __init__(self):
+        print ("Mirror Behavior ",threading.current_thread())
+
+
     def update(self, subject: Subject) -> None:
         self.coordinates = subject._state
         self.motor_output()
 
     def motor_output(self):
+        
         if self.coordinates<0.35:
             current_x=sb_motor_0.motor_pos[0]
             if current_x-6>=-12:
@@ -694,7 +710,7 @@ class DanceBehavior(Observer):
         self.dancePerformance()
 
     def update(self, subject: Subject) -> None:
-        print("is there a clap? ",subject._state)
+        # print("is there a clap? ",subject._state)
         if(subject._state == True):
             print("...................................................................................DanceBehavior detected start signal")
             self.sb0_dancePerformance.start_dance()
