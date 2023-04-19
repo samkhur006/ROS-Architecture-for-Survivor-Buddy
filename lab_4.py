@@ -517,6 +517,16 @@ class ClapCartographer(Observer, Subject):
 
             time.sleep(0.1)
 
+class Face_Params:
+    nose =0
+    ear_distance=0
+    def __init__(self) -> None:
+        self.nose=0
+        self.ear_distance=0
+
+
+def get_dist(a,b):
+    return math.sqrt( (a.x-b.x)**2 +(a.y-b.y)**2   )
 
 class CameraObserver(Observer):
     def update(self, subject: Subject) -> None:
@@ -533,7 +543,9 @@ class FaceCartographer(Observer, Subject):
     previous_image = None
     new_image = None
     # _state: int = None
-    _state: CompressedImage = None
+    _state: CompressedImage = None #Face_Params = None
+
+    _face_params= Face_Params()# = None
     """
     For the sake of simplicity, the Subject's state, essential to all
     subscribers, is stored in this variable.
@@ -567,7 +579,7 @@ class FaceCartographer(Observer, Subject):
         for observer in self._observers:
             observer.update(self)
 
-    def setChanged(self, x_coordinate) -> None:
+    def setChanged(self, face_features) -> None:
         """
         Usually, the subscription logic is only a fraction of what a Subject can
         really do. Subjects commonly hold some important business logic, that
@@ -577,7 +589,8 @@ class FaceCartographer(Observer, Subject):
 
         # print("\nSubject: I'm doing something important.")
         # self._state = randrange(0, 10)
-        self._state = x_coordinate
+        self._face_params.nose = face_features[0]
+        self._face_params.ear_distance = face_features[1]
 
         # print(f"Subject: My state has just changed to: {self._state}")
         self.notify()
@@ -589,46 +602,75 @@ class FaceCartographer(Observer, Subject):
 
     def detectFace(self):        
         # print("Face detected from CameraPerception data: ", camera_input_data.header)
+
         while not killer.kill_now:
             if(self.previous_image != self.new_image):
                 camera_input_data = self.new_image
                 self.previous_image = self.new_image
                 current_x=0
-                np_arr = np.frombuffer(camera_input_data.data,np.uint8)
-                image = cv2.imdecode(np_arr, 1)
-                cv2.namedWindow("Image Window",1)
-                with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
-                    results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                    if results.detections:
-                        for detection in results.detections:
-                            nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
-                            current_x=nose.x
-                cv2.imshow("Image Window",image)
-                cv2.waitKey(1)
-                self.setChanged(current_x) 
+            np_arr = np.frombuffer(camera_input_data.data,np.uint8)
+            image = cv2.imdecode(np_arr, 1)
+            face_features=[]
+            cv2.namedWindow("Image Window",1)
+            with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
+                results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                if results.detections:
+                    for detection in results.detections:
+                        nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
+                        left=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.LEFT_EAR_TRAGION)
+                        right=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.RIGHT_EAR_TRAGION)
+                        distance_between_ears=get_dist(left,right)
+                        current_x=nose.x
+            cv2.imshow("Image Window",image)
+            cv2.waitKey(1)
+            face_features.append(current_x)
+            face_features.append(distance_between_ears)
+            self.setChanged(face_features) 
             time.sleep(0.01) 
 
 
+
 class MirrorBehavior (Observer):
-    coordinates = 0
+    nose = 0
+    ear_distance=0
     def __init__(self):
         print ("Mirror Behavior ",threading.current_thread())
 
-
     def update(self, subject: Subject) -> None:
-        self.coordinates = subject._state
+        self.nose = subject._face_params.nose
+        self.ear_distance = subject._face_params.ear_distance
         self.motor_output()
 
     def motor_output(self):
-        
-        if self.coordinates<0.35:
-            current_x=sb_motor_0.motor_pos[0]
+
+        current_x=sb_motor_0.motor_pos[1]
+        current_y=sb_motor_0.motor_pos[0]
+
+        if self.nose<0.35:
             if current_x-6>=-12:
-                sb_motor_0.move([current_x-6,sb_motor_0.motor_pos[1],sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
-        elif self.coordinates>0.65:
-            current_x=sb_motor_0.motor_pos[0]
+                current_x=current_x-6
+        elif self.nose>0.65:
             if current_x+6<=12:
-                sb_motor_0.move([current_x+6,sb_motor_0.motor_pos[1],sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
+                current_x=current_x+6
+        print("dist is ", self.ear_distance,"  state is ",globals.face_pos)
+        if globals.face_pos==2:
+            if self.ear_distance<0.23:
+                globals.face_pos=0
+        
+        if globals.face_pos==0:
+            if self.ear_distance>0.23 and current_y==0:
+                current_y=-9
+                globals.face_pos=1
+        elif globals.face_pos==1:
+            if self.ear_distance<0.23 and current_y<0:
+                current_y=0
+                globals.face_pos=0
+            elif self.ear_distance>0.3:
+                current_y=0
+                globals.face_pos=2
+
+        sb_motor_0.move([current_y,current_x,sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
+        
         pass
 
         
