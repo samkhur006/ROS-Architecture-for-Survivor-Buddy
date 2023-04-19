@@ -269,6 +269,8 @@ class ClapCartographer(Observer, Subject):
     """
     # _state: int = None
     _state: CompressedImage = None
+    previous_audio = None
+    new_audio = None
     """
     For the sake of simplicity, the Subject's state, essential to all
     subscribers, is stored in this variable.
@@ -279,7 +281,9 @@ class ClapCartographer(Observer, Subject):
     List of subscribers. In real life, the list of subscribers can be stored
     more comprehensively (categorized by event type, etc.).
     """
-
+    def __init__(self):
+        x = threading.Thread(target=self.detectClap, args=())
+        x.start()
     def addObserver(self, observer: Observer) -> None:
         print("ClapCartographer: Attached an observer.")
         self._observers.append(observer)
@@ -317,7 +321,9 @@ class ClapCartographer(Observer, Subject):
 
     def update(self, subject: Subject) -> None:
         # print("AudioCartographer: Received audioPerception data")
-        self.detectClap(subject._state)
+        # self.detectClap(subject._state)
+        self.new_audio = subject._state
+
 
     
     def isNoise(self,arr):
@@ -333,13 +339,19 @@ class ClapCartographer(Observer, Subject):
             #print(abs(sum))
         return False
 
-    def detectClap(self, audio_input_data):        
-        if(self.isNoise(audio_input_data.data)):
-            print("===========================================Clap detected from AudioPerception data: ")
-            clap_detected = True
-            self.setChanged(clap_detected) 
-        else:
-            self.setChanged(False)
+    def detectClap(self):  
+        while not killer.kill_now:
+            if(self.previous_audio != self.new_audio):  
+                self.previous_audio = self.new_audio
+                audio_input_data = self.new_audio
+                if(self.isNoise(audio_input_data.data)):
+                    print("===========================================Clap detected from AudioPerception data: ")
+                    clap_detected = True
+                    self.setChanged(clap_detected) 
+                else:
+                    self.setChanged(False)
+
+            time.sleep(0.1)
 
 
 class CameraObserver(Observer):
@@ -416,7 +428,7 @@ class FaceCartographer(Observer, Subject):
         while not killer.kill_now:
             if(self.previous_image != self.new_image):
                 camera_input_data = self.new_image
-                self.previous_image = camera_input_data
+                self.previous_image = self.new_image
                 current_x=0
                 np_arr = np.frombuffer(camera_input_data.data,np.uint8)
                 image = cv2.imdecode(np_arr, 1)
