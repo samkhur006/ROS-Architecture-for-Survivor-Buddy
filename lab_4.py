@@ -35,6 +35,8 @@ import time
 motor_pos = [0, 0, 0, 0]
 global_goal = [0,0,0,0]
 global_speed = 1
+default_speed = 20
+time_rate = 0.05
 
 mp_face_detection = mp.solutions.face_detection
 mp_drawing = mp.solutions.drawing_utils
@@ -104,7 +106,7 @@ recognizer = vision.GestureRecognizer.create_from_options(options)
 images = []
 results = []
 
-
+CLAP_THREASHOLD = 100
 
 
 
@@ -155,7 +157,7 @@ class CameraPerception(Subject):
     """
 
     def addObserver(self, observer: Observer) -> None:
-        print("Subject: Attached an observer.")
+        # print("Subject: Attached an observer.")
         self._observers.append(observer)
 
     def removeObserver(self, observer: Observer) -> None:
@@ -170,7 +172,7 @@ class CameraPerception(Subject):
         Trigger an update in each subscriber.
         """
 
-        print("Subject: Notifying observers...")
+        # print("Subject: Notifying observers...")
         for observer in self._observers:
             observer.update(self)
 
@@ -182,9 +184,63 @@ class CameraPerception(Subject):
         happen (or after it).
         """
 
-        print("\nSubject: I'm doing something important.")
+        # print("\nSubject: I'm doing something important.")
         # self._state = randrange(0, 10)
         self._state = data
+
+        # print(f"Subject: My state has just changed to: {self._state}")
+        self.notify()
+
+class AudioPerception(Subject):
+    """
+    The Subject owns some important state and notifies observers when the state
+    changes.
+    """
+
+    # _state: int = None
+    _state: Float32MultiArray = None
+    """
+    For the sake of simplicity, the Subject's state, essential to all
+    subscribers, is stored in this variable.
+    """
+
+    _observers: List[Observer] = []
+    """
+    List of subscribers. In real life, the list of subscribers can be stored
+    more comprehensively (categorized by event type, etc.).
+    """
+
+    def addObserver(self, observer: Observer) -> None:
+        # print("Subject: Attached an observer.")
+        self._observers.append(observer)
+
+    def removeObserver(self, observer: Observer) -> None:
+        self._observers.remove(observer)
+
+    """
+    The subscription management methods.
+    """
+
+    def notify(self) -> None:
+        """
+        Trigger an update in each subscriber.
+        """
+
+        # print("Subject: Notifying observers...")
+        for observer in self._observers:
+            observer.update(self)
+
+    def setChanged(self, audioData) -> None:
+        """
+        Usually, the subscription logic is only a fraction of what a Subject can
+        really do. Subjects commonly hold some important business logic, that
+        triggers a notification method whenever something important is about to
+        happen (or after it).
+        """
+
+        # print("\nSubject: I'm doing something important.")
+        # self._state = randrange(0, 10)
+        self._state = audioData
 
         # print(f"Subject: My state has just changed to: {self._state}")
         self.notify()
@@ -207,6 +263,84 @@ class Observer(ABC):
 Concrete Observers react to the updates issued by the Subject they had been
 attached to.
 """
+class ClapCartographer(Observer, Subject):
+    """
+    The Subject owns some important state and notifies observers when the state
+    changes.
+    """
+    # _state: int = None
+    _state: CompressedImage = None
+    """
+    For the sake of simplicity, the Subject's state, essential to all
+    subscribers, is stored in this variable.
+    """
+
+    _observers: List[Observer] = []
+    """
+    List of subscribers. In real life, the list of subscribers can be stored
+    more comprehensively (categorized by event type, etc.).
+    """
+
+    def addObserver(self, observer: Observer) -> None:
+        print("ClapCartographer: Attached an observer.")
+        self._observers.append(observer)
+
+    def removeObserver(self, observer: Observer) -> None:
+        self._observers.remove(observer)
+
+    """
+    The subscription management methods.
+    """
+
+    def notify(self) -> None:
+        """
+        Trigger an update in each subscriber.
+        """
+
+        # print("ClapCartographer: Notifying observers...")
+        for observer in self._observers:
+            observer.update(self)
+
+    def setChanged(self, clap_data) -> None:
+        """
+        Usually, the subscription logic is only a fraction of what a Subject can
+        really do. Subjects commonly hold some important business logic, that
+        triggers a notification method whenever something important is about to
+        happen (or after it).
+        """
+
+        # print("\ClapCartographer: calling setChanged")
+        # self._state = randrange(0, 10)
+        self._state = clap_data
+
+        # print(f"Subject: My state has just changed to: {self._state}")
+        self.notify()
+
+    def update(self, subject: Subject) -> None:
+        # print("AudioCartographer: Received audioPerception data")
+        self.detectClap(subject._state)
+
+    
+    def isNoise(self,arr):
+        thr = CLAP_THREASHOLD	#Threashold
+        sum = 0
+        for i in arr:
+            sum+=abs(i)
+        if(abs(sum)>thr):
+            print(abs(sum))
+            intensity = (abs(sum)-thr)/thr*100
+            #print("intensity: ", intensity)
+            return True
+            #print(abs(sum))
+        return False
+
+    def detectClap(self, audio_input_data):        
+        if(self.isNoise(audio_input_data.data)):
+            print("===========================================Clap detected from AudioPerception data: ")
+            clap_detected = True
+            self.setChanged(clap_detected) 
+        else:
+            self.setChanged(False)
 
 
 class CameraObserver(Observer):
@@ -250,7 +384,7 @@ class FaceCartographer(Observer, Subject):
         Trigger an update in each subscriber.
         """
 
-        print("Subject: Notifying observers...")
+        # print("Subject: Notifying observers...")
         for observer in self._observers:
             observer.update(self)
 
@@ -262,7 +396,7 @@ class FaceCartographer(Observer, Subject):
         happen (or after it).
         """
 
-        print("\nSubject: I'm doing something important.")
+        # print("\nSubject: I'm doing something important.")
         # self._state = randrange(0, 10)
         self._state = x_coordinate
 
@@ -270,13 +404,13 @@ class FaceCartographer(Observer, Subject):
         self.notify()
 
     def update(self, subject: Subject) -> None:
-        print("FaceCartographer: Received cameraPerception data")
+        # print("FaceCartographer: Received cameraPerception data")
         self.detectFace(subject._state)
 
     def detectFace(self, camera_input_data):        
-        print("Face detected from CameraPerception data: ", camera_input_data.header)
+        # print("Face detected from CameraPerception data: ", camera_input_data.header)
         current_x=0
-        np_arr = np.frombuffer(data.data,np.uint8)
+        np_arr = np.frombuffer(camera_input_data.data,np.uint8)
         image = cv2.imdecode(np_arr, 1)
         with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
             results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
@@ -293,14 +427,15 @@ class MirrorBehavior (Observer):
         self.motor_output()
 
     def motor_output(self):
-        if self.coordinates<0.35:
-            current_x=globals.sb_motor_0.motor_pos[0]
-            if current_x-6>=-12:
-                globals.sb_motor_0.move([current_x-6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
-        elif self.coordinates>0.65:
-            current_x=globals.sb_motor_0.motor_pos[0]
-            if current_x+6<=12:
-                globals.sb_motor_0.move([current_x+6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
+        pass
+        # if self.coordinates<0.35:
+        #     current_x=globals.sb_motor_0.motor_pos[0]
+        #     if current_x-6>=-12:
+        #         globals.sb_motor_0.move([current_x-6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
+        # elif self.coordinates>0.65:
+        #     current_x=globals.sb_motor_0.motor_pos[0]
+        #     if current_x+6<=12:
+        #         globals.sb_motor_0.move([current_x+6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
         
 
     
@@ -340,6 +475,7 @@ dance_clock = time.time()
 class Motor_Schema:
     global killer
     def __init__(self, sb_motor_publisher):
+        print ("Motor Schema ",threading.current_thread())
         self.sb_motor_publisher = sb_motor_publisher
         self.motor_pos = [0,0,0,0]
         self.global_goal = [0,0,0,0]
@@ -349,7 +485,7 @@ class Motor_Schema:
         
         
     
-    def move(self, goal, speed=globals.default_speed):
+    def move(self, goal, speed=default_speed):
         self.global_goal = goal
         self.global_speed = speed
         # self.motor_control()
@@ -408,13 +544,15 @@ class Motor_Schema:
                     twist.twist.angular.x = self.motor_pos[3]
                     
                     self.sb_motor_publisher.publish(twist)
-                    time.sleep(0.1)  
+                time.sleep(0.1)  
                     
 
 
-class DancePerformance:
+class DancePerformance():
     global killer, dance_clock
+    
     def __init__(self, sb_motor):
+        print ("Dance Performance ",threading.current_thread())
         # self.motors = motors
         self.danceSteps = []
         self.run = False
@@ -424,11 +562,14 @@ class DancePerformance:
         # self.sb_motors = 0
         x = threading.Thread(target=self.execute, args=())
         x.start()
-        
+    
+    
+
     def start_dance(self):
         global dance_clock
         dance_clock = 0
         self.run = True
+        # self.execute()
     def addDanceStep(self, danceStep, time):
         self.danceSteps.append([danceStep, time])
         # self.sb_motors = danceStep.motors
@@ -438,18 +579,28 @@ class DancePerformance:
     
     def execute(self):
         global dance_clock
+        kill = killer.kill_now
+        trigger = False
+        # self.run = False
         while not self.run and not killer.kill_now:
-            for actionStep in self.danceSteps:
-                dance = actionStep[0]
-                dance_release_time = actionStep[1]
-                print("----------------------------------- Next step at: ",dance_release_time ," current time: ",dance_clock)
-                while dance_clock < dance_release_time and not killer.kill_now:
-                    # random_buddy = random.randint(0,3)
-                    # self.freeStyle.perform()
-                    time.sleep(0.1)
-                    pass
-                    
-                dance.perform()
+            # time.sleep(0.1)
+            pass
+        if(killer.kill_now):
+            return
+        else:
+            if(kill):
+                return
+        for actionStep in self.danceSteps:
+            dance = actionStep[0]
+            dance_release_time = actionStep[1]
+            print("----------------------------------- Next step at: ",dance_release_time ," current time: ",dance_clock)
+            while dance_clock < dance_release_time and not killer.kill_now:
+                # random_buddy = random.randint(0,3)
+                # self.freeStyle.perform()
+                time.sleep(0.1)
+                pass
+                
+            dance.perform()
         print("============================================ Thank you For Watching !!! ================================")
         print("                                                  Hope you Enjoyed                 ")
         
@@ -524,121 +675,37 @@ class FreeStyle(DanceStep):
 
         
 
-class GenericBehavior(object):
-    def __init__(self):
+class DanceBehavior(Observer):
+    def __init__(self, sb_motor_0, sb_motor_1, sb_motor_2, sb_motor_3):
         
-        self.sb_motors = []
-        
-        self.pub = rospy.Publisher(
-            "/move_group/display_planned_path", DisplayTrajectory, queue_size=20
-        )
-        self.sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
-        self.sb_motor_publisher_1 = rospy.Publisher('/sb_1_cmd_state', TwistStamped, queue_size=1)
-        self.sb_motor_publisher_2 = rospy.Publisher('/sb_2_cmd_state', TwistStamped, queue_size=1)
-        self.sb_motor_publisher_3 = rospy.Publisher('/sb_3_cmd_state', TwistStamped, queue_size=1)
-
-
-        # self.sb_motors.append(Motor_Schema(self.sb_motor_publisher_0));
-        # self.sb_motors.append(Motor_Schema(self.sb_motor_publisher_1));
-        # self.sb_motors.append(Motor_Schema(self.sb_motor_publisher_2));
-        # self.sb_motors.append(Motor_Schema(self.sb_motor_publisher_3));
-
-        self.sb_motor_0 = Motor_Schema(self.sb_motor_publisher_0);
-        self.sb_motor_1 = Motor_Schema(self.sb_motor_publisher_1);
-        self.sb_motor_2 = Motor_Schema(self.sb_motor_publisher_2);
-        self.sb_motor_3 = Motor_Schema(self.sb_motor_publisher_3);
-
-        self.sb0_dancePerformance = DancePerformance(self.sb_motor_0)
-        self.sb1_dancePerformance = DancePerformance(self.sb_motor_1)
-        self.sb2_dancePerformance = DancePerformance(self.sb_motor_2)
-        self.sb3_dancePerformance = DancePerformance(self.sb_motor_3)
-        
-        self.talk = rospy.Publisher('/talker', String, queue_size=1)
+        self.sb0_dancePerformance = DancePerformance(sb_motor_0)
+        self.sb1_dancePerformance = DancePerformance(sb_motor_1)
+        self.sb2_dancePerformance = DancePerformance(sb_motor_2)
+        self.sb3_dancePerformance = DancePerformance(sb_motor_3)
         
         
         rospy.loginfo("Node started.")
         self.group_name = "survivor_buddy_head"
         # x = threading.Thread(target=self.motors.motor_control(), args=())
         # x.start()
-        # self.dancePerformance()
+        self.dancePerformance()
 
-    
+    def update(self, subject: Subject) -> None:
+        print("is there a clap? ",subject._state)
+        if(subject._state == True):
+            print("...................................................................................DanceBehavior detected start signal")
+            self.sb0_dancePerformance.start_dance()
+            self.sb1_dancePerformance.start_dance()
+            self.sb2_dancePerformance.start_dance()
+            self.sb3_dancePerformance.start_dance()
 
-
-    def callback_1(self, data):
-        # print ("Callback 1: ",threading.current_thread())
-        return
-               
-
-
-    def callback_2(self, data):
-        # print ("callback 2: ",threading.current_thread())
-        
-                # motor_pos = [0,0,0,0]        
-        pass
-
-def clock_update(event):
-    global dance_clock
-    dance_clock = dance_clock + 0.01
-    # print("                  clock updated", dance_clock)
-
-if __name__ == '__main__':
-    
-    rospy.init_node("lab_1_node")
-    moveit_commander.roscpp_initialize(sys.argv)
-    buddy = GenericBehavior()
-
-    cameraPerception = CameraPerception()
-    cameraObserver = CameraObserver()
-
-
-    cameraPerception.addObserver(cameraObserver)
-
-    # cameraPerception.setChanged(12345)
-
-    # camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=buddy.callback_2, queue_size=1)
-    camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=cameraPerception.setChanged, queue_size=1)
-    audio_sub = rospy.Subscriber("/audio", Float32MultiArray, callback= buddy.callback_1, queue_size=1) 
-
-    globals.sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
-    globals.sb_motor_0 = Motor_Schema(globals.sb_motor_publisher_0);
-    #Mirror Behavior Main Code
-    mirrorBehavior = MirrorBehavior()
-    faceCartographer = FaceCartographer()
-
-    cameraPerception.addObserver(faceCartographer)
-    faceCartographer.addObserver(mirrorBehavior)
-
-
-    # print ("main ",threading.current_thread())
-    # init_pos = [0,0,0,0]
-    # x = threading.Thread(target=self.motor_control, args=(global_goal, 1))
-    # x.start()
-
-    # motor_control(buddy, global_goal, 1);
-    # killer = GracefulKiller()
-    # motors = Motor_schema(buddy)
-    # x = threading.Thread(target=motors.move, args=())
-    # x.start()
-    
-    # rospy.Timer(rospy.Duration(0.01), clock_update)
-
-    rospy.spin()
-    # rospy.MultiThreadedSpinner spinner(4); # Use 4 threads
-    # spinner.spin(); # spin() will not return until the node has been shutdown
-
-"""
-
-def dancePerformance(self):
+    def dancePerformance(self):
         self.danceChoreograph0(self.sb0_dancePerformance)
         self.danceChoreograph1(self.sb1_dancePerformance)
         self.danceChoreograph2(self.sb2_dancePerformance)
         self.danceChoreograph3(self.sb3_dancePerformance)
 
-        self.sb0_dancePerformance.start_dance()
-        self.sb1_dancePerformance.start_dance()
-        self.sb2_dancePerformance.start_dance()
-        self.sb3_dancePerformance.start_dance()
+        
     
         
     def danceChoreograph0(self, dancePerformance):
@@ -941,4 +1008,74 @@ def dancePerformance(self):
             # else:
             dancePerformance.addDanceStep(simpleStep, 1)
 
-"""
+
+def clock_update(event):
+    global dance_clock
+    dance_clock = dance_clock + time_rate
+    # print("                  clock updated", dance_clock)
+
+
+if __name__ == '__main__':
+    
+    rospy.init_node("lab_1_node")
+    moveit_commander.roscpp_initialize(sys.argv)
+    sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
+    sb_motor_publisher_1 = rospy.Publisher('/sb_1_cmd_state', TwistStamped, queue_size=1)
+    sb_motor_publisher_2 = rospy.Publisher('/sb_2_cmd_state', TwistStamped, queue_size=1)
+    sb_motor_publisher_3 = rospy.Publisher('/sb_3_cmd_state', TwistStamped, queue_size=1)
+
+    sb_motor_0 = Motor_Schema(sb_motor_publisher_0);
+    sb_motor_1 = Motor_Schema(sb_motor_publisher_1);
+    sb_motor_2 = Motor_Schema(sb_motor_publisher_2);
+    sb_motor_3 = Motor_Schema(sb_motor_publisher_3);
+
+    
+    
+    talk = rospy.Publisher('/talker', String, queue_size=1)
+
+
+    danceBehavior = DanceBehavior(sb_motor_0, sb_motor_1, sb_motor_2, sb_motor_3)
+    clapCartographer = ClapCartographer()
+    clapCartographer.addObserver(danceBehavior)
+
+    cameraPerception = CameraPerception()
+    cameraObserver = CameraObserver()
+    cameraPerception.addObserver(cameraObserver)
+
+    audioPerception = AudioPerception()
+    audioPerception.addObserver(clapCartographer)
+
+    
+
+    # cameraPerception.setChanged(12345)
+
+    # camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=buddy.callback_2, queue_size=1)
+    camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=cameraPerception.setChanged, queue_size=1)
+    audio_sub = rospy.Subscriber("/audio", Float32MultiArray, callback= audioPerception.setChanged, queue_size=1) 
+
+    # globals.sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
+    # globals.sb_motor_0 = Motor_Schema(globals.sb_motor_publisher_0);
+    #Mirror Behavior Main Code
+    mirrorBehavior = MirrorBehavior()
+    faceCartographer = FaceCartographer()
+
+    cameraPerception.addObserver(faceCartographer)
+    faceCartographer.addObserver(mirrorBehavior)
+
+
+    print ("main ",threading.current_thread())
+    # init_pos = [0,0,0,0]
+    # x = threading.Thread(target=self.motor_control, args=(global_goal, 1))
+    # x.start()
+
+    # motor_control(buddy, global_goal, 1);
+    # killer = GracefulKiller()
+    # motors = Motor_schema(buddy)
+    # x = threading.Thread(target=motors.move, args=())
+    # x.start()
+    
+    rospy.Timer(rospy.Duration(time_rate), clock_update)
+
+    rospy.spin()
+    # rospy.MultiThreadedSpinner spinner(4); # Use 4 threads
+    # spinner.spin(); # spin() will not return until the node has been shutdown
