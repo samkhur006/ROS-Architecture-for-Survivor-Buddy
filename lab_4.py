@@ -778,7 +778,7 @@ class DancePerformance():
         trigger = False
         # self.run = False
         while not self.run and not killer.kill_now:
-            # time.sleep(0.1)
+            time.sleep(0.1)
             pass
         if(killer.kill_now):
             return
