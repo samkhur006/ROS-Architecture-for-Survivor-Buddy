@@ -292,6 +292,8 @@ class HandGestureCartographer(Observer):
     """
     Hand Gesture Cartographer class.
     """
+    previous_image = None
+    new_image = None
     def __init__(self):
         
         # self.pub = rospy.Publisher("/move_group/display_planned_path", DisplayTrajectory, queue_size=20)
@@ -305,42 +307,32 @@ class HandGestureCartographer(Observer):
         # self.group_name = "survivor_buddy_head"
 
         # Initialize ROS node and publisher
-        # self.gesture_pub = rospy.Publisher("/guesture", String, queue_size=10)
-        # self.message = String()
-        # self.rate=rospy.Rate(1)
-        pass
+        self.gesture_pub = rospy.Publisher("/talker", String, queue_size=10)
+        self.message = String()
+        self.rate=rospy.Rate(1)
+
+        x = threading.Thread(target=self.handRecognition, args=())
+        x.start()
 
     def update(self, subject: Subject) -> None:
-        cameraData = subject._state
-        self.handRecognition(cameraData)
+        self.new_image = subject._state
+        # self.handRecognition()
 
-    def handRecognition(self, data):
+    def handRecognition(self):
+        
         global timer,timer1 , Counter_1, Counter_2, hands
 
 
         global current_frame,VideoData
-        VideoData=data
+        
         global mp_drawing,mp_drawing_styles,mp_hands
+        cv2.namedWindow("MediaPipe Hands",2)
 
+        while not killer.kill_now:
 
-        if timer1 !=0:
-            timer1 -=1
-            # print('skipping frame')
-            return
-        else:
-            timer1=10
-
-            if timer==-1:
-                timer=int(time.time())
-<<<<<<< Updated upstream
-
-            # if data.data == None:
-            #     print("Ignoring empty camera frame.")
-            #     # If loading a video, use 'break' instead of 'continue'.
-            #     continue
-
-            if VideoData.data is not None:
-
+            if self.previous_image != self.new_image:
+                VideoData=self.new_image
+                self.previous_image = self.new_image
                 np_arr = np.frombuffer(VideoData.data,np.uint8)
                 cv_frame = cv2.imdecode(np_arr, 1)
                 image=cv2.resize(cv_frame,(120,120))
@@ -357,38 +349,13 @@ class HandGestureCartographer(Observer):
                 image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
                 # print('inside video')
 
-=======
-
-            # if data.data == None:
-            #     print("Ignoring empty camera frame.")
-            #     # If loading a video, use 'break' instead of 'continue'.
-            #     continue
-
-            if VideoData.data is not None:
-
-                np_arr = np.frombuffer(VideoData.data,np.uint8)
-                cv_frame = cv2.imdecode(np_arr, 1)
-                image=cv2.resize(cv_frame,(120,120))
-                x, y, c = image.shape
-
-                # To improve performance, optionally mark the image as not writeable to
-                # pass by reference.
-                image.flags.writeable = False
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                result = hands.process(image)
-
-                # Draw the hand annotations on the image.
-                image.flags.writeable = True
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                # print('inside video')
-
->>>>>>> Stashed changes
                 # print(result)
                 
                 className = ''
 
                 # post process the result
                 if result.multi_hand_landmarks:
+                    print("..............Hand recognition called")
                     landmarks = []
                     for handslms in result.multi_hand_landmarks:
                         for lm in handslms.landmark:
@@ -397,7 +364,7 @@ class HandGestureCartographer(Observer):
                             lmy = int(lm.y * y)
 
                             landmarks.append([lmx, lmy])
-                        timer=int(time.time())
+                        # timer=int(time.time())
                         # Drawing landmarks on frames
                         mpDraw.draw_landmarks(image, handslms, mpHands.HAND_CONNECTIONS)
 
@@ -409,12 +376,12 @@ class HandGestureCartographer(Observer):
                             print("Play (Victiory Peace)")
                             self.message.data='victory'
                             self.gesture_pub.publish(self.message)
-                            self.rate.sleep()
+                            # self.rate.sleep()
                         elif classID == 2:
                             print("Increase Volume(Thumbs up)")
                             self.message.data='up'
                             self.gesture_pub.publish(self.message)
-                            self.rate.sleep()                            
+                            # self.rate.sleep()                            
                             # if (twist.twist.linear.x )<= 45.0:
                             #     twist.twist.linear.x -= -2.0
 
@@ -424,19 +391,19 @@ class HandGestureCartographer(Observer):
                             #     twist.twist.linear.x += -2.0
                             self.message.data='down'
                             self.gesture_pub.publish(self.message)
-                            self.rate.sleep()
+                            # self.rate.sleep()
 
                         elif classID == 5:
                             print("Stop (Palm)")
                             self.message.data='palm'
                             self.gesture_pub.publish(self.message)
-                            self.rate.sleep()
+                            # self.rate.sleep()
                             
                         elif classID == 8:
                             print("Pause (Fist)")
                             self.message.data='fist'
                             self.gesture_pub.publish(self.message)
-                            self.rate.sleep()
+                            # self.rate.sleep()
                         
 
                         # else:
@@ -448,11 +415,13 @@ class HandGestureCartographer(Observer):
                         #     time.sleep(0.5)
 
                         className = classNames[classID]
-                        print(className)               
-
-
+                        print(className)   
                 cv2.imshow('MediaPipe Hands', cv2.flip(image, 1))
-                cv2.waitKey(1)
+                cv2.waitKey(1)   
+            time.sleep(0.1)         
+
+
+                
 """
 Concrete Observers react to the updates issued by the Subject they had been
 attached to.
@@ -1289,7 +1258,7 @@ if __name__ == '__main__':
     mirrorBehavior = MirrorBehavior()
     faceCartographer = FaceCartographer()
 
-    cameraPerception.addObserver(faceCartographer)
+    # cameraPerception.addObserver(faceCartographer)
     faceCartographer.addObserver(mirrorBehavior)
 
 
