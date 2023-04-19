@@ -411,12 +411,15 @@ class FaceCartographer(Observer, Subject):
         current_x=0
         np_arr = np.frombuffer(camera_input_data.data,np.uint8)
         image = cv2.imdecode(np_arr, 1)
+        cv2.namedWindow("Image Window",1)
         with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
             results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             if results.detections:
                 for detection in results.detections:
                     nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
                     current_x=nose.x
+        cv2.imshow("Image Window",image)
+        cv2.waitKey(1)
         self.setChanged(current_x) 
 
 class MirrorBehavior (Observer):
@@ -426,7 +429,6 @@ class MirrorBehavior (Observer):
         self.motor_output()
 
     def motor_output(self):
-        pass
         if self.coordinates<0.35:
             current_x=sb_motor_0.motor_pos[0]
             if current_x-6>=-12:
@@ -435,6 +437,8 @@ class MirrorBehavior (Observer):
             current_x=sb_motor_0.motor_pos[0]
             if current_x+6<=12:
                 sb_motor_0.move([current_x+6,sb_motor_0.motor_pos[1],sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
+        pass
+
         
 
     
@@ -1018,7 +1022,7 @@ if __name__ == '__main__':
     
     rospy.init_node("lab_1_node")
     moveit_commander.roscpp_initialize(sys.argv)
-    globals.initialize()
+    #globals.initialize()
     sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
     sb_motor_publisher_1 = rospy.Publisher('/sb_1_cmd_state', TwistStamped, queue_size=1)
     sb_motor_publisher_2 = rospy.Publisher('/sb_2_cmd_state', TwistStamped, queue_size=1)
