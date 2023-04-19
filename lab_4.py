@@ -108,6 +108,15 @@ results = []
 CLAP_THREASHOLD = 100
 
 
+##########HAND GUESTURE DETECTION
+global mpHands,timer1,hands,actions
+
+timer1=0
+import cv2
+import numpy as np
+import mediapipe as mp
+import tensorflow as tf
+from tensorflow.keras.models import load_model
 
 class Subject(ABC):
     """
@@ -257,7 +266,162 @@ class Observer(ABC):
         """
         pass
 
+Counter_1=0
+Counter_2=0
+timer=-1
+face_detected=True
+clap_detected=False
+current_frame=None
 
+# initialize mediapipe
+mpHands = mp.solutions.hands
+hands = mpHands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+mpDraw = mp.solutions.drawing_utils
+
+# Load the gesture recognizer model
+model = load_model('./mp_hand_gesture')
+
+# Load class names
+f = open('./gesture.names', 'r')
+classNames = f.read().split('\n')
+f.close()
+# print(classNames)
+
+
+class HandGestureCartographer(Observer):
+    """
+    Hand Gesture Cartographer class.
+    """
+    previous_image = None
+    new_image = None
+    def __init__(self):
+        
+        # self.pub = rospy.Publisher("/move_group/display_planned_path", DisplayTrajectory, queue_size=20)
+        # self.twist_pub = rospy.Publisher('/sb_cmd_state', TwistStamped, queue_size=10)
+        # print("generic class")
+        # self.audio_sub = rospy.Subscriber("/audio", Float32MultiArray, callback=self.audio_callback, queue_size=1)
+        # print("executed audio_sub")
+        # self.camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=self.video_callback, queue_size=1)
+        # print("Video executed")
+        # rospy.loginfo("Node started.")
+        # self.group_name = "survivor_buddy_head"
+
+        # Initialize ROS node and publisher
+        self.gesture_pub = rospy.Publisher("/talker", String, queue_size=10)
+        self.message = String()
+        self.rate=rospy.Rate(1)
+
+        x = threading.Thread(target=self.handRecognition, args=())
+        x.start()
+
+    def update(self, subject: Subject) -> None:
+        self.new_image = subject._state
+        # self.handRecognition()
+
+    def handRecognition(self):
+        
+        global timer,timer1 , Counter_1, Counter_2, hands
+
+
+        global current_frame,VideoData
+        
+        global mp_drawing,mp_drawing_styles,mp_hands
+        cv2.namedWindow("MediaPipe Hands",2)
+
+        while not killer.kill_now:
+
+            if self.previous_image != self.new_image:
+                VideoData=self.new_image
+                self.previous_image = self.new_image
+                np_arr = np.frombuffer(VideoData.data,np.uint8)
+                cv_frame = cv2.imdecode(np_arr, 1)
+                image=cv2.resize(cv_frame,(120,120))
+                x, y, c = image.shape
+
+                # To improve performance, optionally mark the image as not writeable to
+                # pass by reference.
+                image.flags.writeable = False
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                result = hands.process(image)
+
+                # Draw the hand annotations on the image.
+                image.flags.writeable = True
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                # print('inside video')
+
+                # print(result)
+                
+                className = ''
+
+                # post process the result
+                if result.multi_hand_landmarks:
+                    print("..............Hand recognition called")
+                    landmarks = []
+                    for handslms in result.multi_hand_landmarks:
+                        for lm in handslms.landmark:
+                            # print(id, lm)
+                            lmx = int(lm.x * x)
+                            lmy = int(lm.y * y)
+
+                            landmarks.append([lmx, lmy])
+                        # timer=int(time.time())
+                        # Drawing landmarks on frames
+                        mpDraw.draw_landmarks(image, handslms, mpHands.HAND_CONNECTIONS)
+
+                        # Predict gesture  13n
+                        prediction = model.predict([landmarks])
+                        # print(prediction)
+                        classID = np.argmax(prediction)
+                        if classID == 1:
+                            print("Play (Victiory Peace)")
+                            self.message.data='victory'
+                            self.gesture_pub.publish(self.message)
+                            # self.rate.sleep()
+                        elif classID == 2:
+                            print("Increase Volume(Thumbs up)")
+                            self.message.data='up'
+                            self.gesture_pub.publish(self.message)
+                            # self.rate.sleep()                            
+                            # if (twist.twist.linear.x )<= 45.0:
+                            #     twist.twist.linear.x -= -2.0
+
+                        elif classID == 3:
+                            print("Decrease Volume (Thumbs Down)")
+                            # if (twist.twist.linear.x )>= -45:
+                            #     twist.twist.linear.x += -2.0
+                            self.message.data='down'
+                            self.gesture_pub.publish(self.message)
+                            # self.rate.sleep()
+
+                        elif classID == 5:
+                            print("Stop (Palm)")
+                            self.message.data='palm'
+                            self.gesture_pub.publish(self.message)
+                            # self.rate.sleep()
+                            
+                        elif classID == 8:
+                            print("Pause (Fist)")
+                            self.message.data='fist'
+                            self.gesture_pub.publish(self.message)
+                            # self.rate.sleep()
+                        
+
+                        # else:
+                        #     twist.twist.linear.y = 10.0
+                        #     time.sleep(0.5)
+                        #     twist.twist.linear.y = 0.0
+                        #     time.sleep(0.5)
+                        #     twist.twist.linear.y = -10.0
+                        #     time.sleep(0.5)
+
+                        className = classNames[classID]
+                        print(className)   
+                cv2.imshow('MediaPipe Hands', cv2.flip(image, 1))
+                cv2.waitKey(1)   
+            time.sleep(0.1)         
+
+
+                
 """
 Concrete Observers react to the updates issued by the Subject they had been
 attached to.
@@ -1070,9 +1234,12 @@ if __name__ == '__main__':
     clapCartographer = ClapCartographer()
     clapCartographer.addObserver(danceBehavior)
 
+    handGestureCartographer = HandGestureCartographer()
+
     cameraPerception = CameraPerception()
     cameraObserver = CameraObserver()
     cameraPerception.addObserver(cameraObserver)
+    cameraPerception.addObserver(handGestureCartographer)
 
     audioPerception = AudioPerception()
     audioPerception.addObserver(clapCartographer)
@@ -1091,7 +1258,7 @@ if __name__ == '__main__':
     mirrorBehavior = MirrorBehavior()
     faceCartographer = FaceCartographer()
 
-    cameraPerception.addObserver(faceCartographer)
+    # cameraPerception.addObserver(faceCartographer)
     faceCartographer.addObserver(mirrorBehavior)
 
 
