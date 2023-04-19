@@ -35,7 +35,6 @@ import time
 motor_pos = [0, 0, 0, 0]
 global_goal = [0,0,0,0]
 global_speed = 1
-default_speed = 20
 time_rate = 0.05
 
 mp_face_detection = mp.solutions.face_detection
@@ -428,14 +427,14 @@ class MirrorBehavior (Observer):
 
     def motor_output(self):
         pass
-        # if self.coordinates<0.35:
-        #     current_x=globals.sb_motor_0.motor_pos[0]
-        #     if current_x-6>=-12:
-        #         globals.sb_motor_0.move([current_x-6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
-        # elif self.coordinates>0.65:
-        #     current_x=globals.sb_motor_0.motor_pos[0]
-        #     if current_x+6<=12:
-        #         globals.sb_motor_0.move([current_x+6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
+        if self.coordinates<0.35:
+            current_x=sb_motor_0.motor_pos[0]
+            if current_x-6>=-12:
+                sb_motor_0.move([current_x-6,sb_motor_0.motor_pos[1],sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
+        elif self.coordinates>0.65:
+            current_x=sb_motor_0.motor_pos[0]
+            if current_x+6<=12:
+                sb_motor_0.move([current_x+6,sb_motor_0.motor_pos[1],sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
         
 
     
@@ -485,7 +484,7 @@ class Motor_Schema:
         
         
     
-    def move(self, goal, speed=default_speed):
+    def move(self, goal, speed=globals.default_speed):
         self.global_goal = goal
         self.global_speed = speed
         # self.motor_control()
@@ -1019,6 +1018,7 @@ if __name__ == '__main__':
     
     rospy.init_node("lab_1_node")
     moveit_commander.roscpp_initialize(sys.argv)
+    globals.initialize()
     sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
     sb_motor_publisher_1 = rospy.Publisher('/sb_1_cmd_state', TwistStamped, queue_size=1)
     sb_motor_publisher_2 = rospy.Publisher('/sb_2_cmd_state', TwistStamped, queue_size=1)
