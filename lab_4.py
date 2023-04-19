@@ -14,6 +14,7 @@ from geometry_msgs.msg import TwistStamped
 
 # Python 2/3 compatibility imports
 import sys
+import globals
 import copy
 import random
 import math
@@ -35,6 +36,7 @@ motor_pos = [0, 0, 0, 0]
 global_goal = [0,0,0,0]
 global_speed = 1
 
+mp_face_detection = mp.solutions.face_detection
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
@@ -252,7 +254,7 @@ class FaceCartographer(Observer, Subject):
         for observer in self._observers:
             observer.update(self)
 
-    def setChanged(self, data) -> None:
+    def setChanged(self, x_coordinate) -> None:
         """
         Usually, the subscription logic is only a fraction of what a Subject can
         really do. Subjects commonly hold some important business logic, that
@@ -262,7 +264,7 @@ class FaceCartographer(Observer, Subject):
 
         print("\nSubject: I'm doing something important.")
         # self._state = randrange(0, 10)
-        self._state = data
+        self._state = x_coordinate
 
         # print(f"Subject: My state has just changed to: {self._state}")
         self.notify()
@@ -271,18 +273,35 @@ class FaceCartographer(Observer, Subject):
         print("FaceCartographer: Received cameraPerception data")
         self.detectFace(subject._state)
 
-    def detectFace(self, data):
-        print("Face detected from CameraPerception data: ", data.header)
-        self.setChanged("Symbolic Detected Face :)")
+    def detectFace(self, camera_input_data):        
+        print("Face detected from CameraPerception data: ", camera_input_data.header)
+        current_x=0
+        np_arr = np.frombuffer(data.data,np.uint8)
+        image = cv2.imdecode(np_arr, 1)
+        with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
+            results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            if results.detections:
+                for detection in results.detections:
+                    nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
+                    current_x=nose.x
+        self.setChanged(current_x) 
 
 class MirrorBehavior (Observer):
-    coordinates = ""
+    coordinates = 0
     def update(self, subject: Subject) -> None:
         self.coordinates = subject._state
         self.motor_output()
 
     def motor_output(self):
-        print("Motor moves following ", self.coordinates)
+        if self.coordinates<0.35:
+            current_x=globals.sb_motor_0.motor_pos[0]
+            if current_x-6>=-12:
+                globals.sb_motor_0.move([current_x-6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
+        elif self.coordinates>0.65:
+            current_x=globals.sb_motor_0.motor_pos[0]
+            if current_x+6<=12:
+                globals.sb_motor_0.move([current_x+6,globals.sb_motor_0.motor_pos[1],globals.sb_motor_0.motor_pos[2],globals.sb_motor_0.motor_pos[3]] )
+        
 
     
 
@@ -330,7 +349,7 @@ class Motor_Schema:
         
         
     
-    def move(self, goal, speed):
+    def move(self, goal, speed=globals.default_speed):
         self.global_goal = goal
         self.global_speed = speed
         # self.motor_control()
@@ -581,6 +600,8 @@ if __name__ == '__main__':
     camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=cameraPerception.setChanged, queue_size=1)
     audio_sub = rospy.Subscriber("/audio", Float32MultiArray, callback= buddy.callback_1, queue_size=1) 
 
+    globals.sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
+    globals.sb_motor_0 = Motor_Schema(globals.sb_motor_publisher_0);
     #Mirror Behavior Main Code
     mirrorBehavior = MirrorBehavior()
     faceCartographer = FaceCartographer()
