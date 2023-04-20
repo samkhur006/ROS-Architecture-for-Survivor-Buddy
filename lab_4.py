@@ -287,32 +287,56 @@ classNames = f.read().split('\n')
 f.close()
 # print(classNames)
 
-
-class HandGestureCartographer(Observer):
+class HandGestureCartographer(Observer, Subject):
     """
     Hand Gesture Cartographer class.
     """
+    # _state: int = None
+    _state: Float32MultiArray = None
+    """
+    For the sake of simplicity, the Subject's state, essential to all
+    subscribers, is stored in this variable.
+    """
+
+    _observers: List[Observer] = []
     previous_image = None
     new_image = None
     def __init__(self):
         
-        # self.pub = rospy.Publisher("/move_group/display_planned_path", DisplayTrajectory, queue_size=20)
-        # self.twist_pub = rospy.Publisher('/sb_cmd_state', TwistStamped, queue_size=10)
-        # print("generic class")
-        # self.audio_sub = rospy.Subscriber("/audio", Float32MultiArray, callback=self.audio_callback, queue_size=1)
-        # print("executed audio_sub")
-        # self.camera_sub = rospy.Subscriber("/camera/image/compressed", CompressedImage, callback=self.video_callback, queue_size=1)
-        # print("Video executed")
-        # rospy.loginfo("Node started.")
-        # self.group_name = "survivor_buddy_head"
-
         # Initialize ROS node and publisher
-        self.gesture_pub = rospy.Publisher("/talker", String, queue_size=10)
+
         self.message = String()
         self.rate=rospy.Rate(1)
 
         x = threading.Thread(target=self.handRecognition, args=())
         x.start()
+
+    def addObserver(self, observer: Observer) -> None:
+        print("Subject: Attached an observer.")
+        self._observers.append(observer)
+
+    def removeObserver(self, observer: Observer) -> None:
+        self._observers.remove(observer)
+
+    def notify(self) -> None:
+        """
+        Trigger an update in each subscriber.
+        """
+        # print("Subject: Notifying observers...")
+        for observer in self._observers:
+            observer.update(self)
+
+    def setChanged(self, classID) -> None:
+        """
+        Usually, the subscription logic is only a fraction of what a Subject can
+        really do. Subjects commonly hold some important business logic, that
+        triggers a notification method whenever something important is about to
+        happen (or after it).
+        """
+        self._state = classID
+
+        # print(f"Subject: My state has just changed to: {self._state}")
+        self.notify()
 
     def update(self, subject: Subject) -> None:
         self.new_image = subject._state
@@ -335,7 +359,7 @@ class HandGestureCartographer(Observer):
                 self.previous_image = self.new_image
                 np_arr = np.frombuffer(VideoData.data,np.uint8)
                 cv_frame = cv2.imdecode(np_arr, 1)
-                image=cv2.resize(cv_frame,(200,200))
+                image=cv2.resize(cv_frame,(120,120))
                 x, y, c = image.shape
 
                 # To improve performance, optionally mark the image as not writeable to
@@ -372,54 +396,88 @@ class HandGestureCartographer(Observer):
                         prediction = model.predict([landmarks])
                         # print(prediction)
                         classID = np.argmax(prediction)
-                        if classID == 1:
-                            print("Play (Victiory Peace)")
-                            self.message.data='victory'
-                            self.gesture_pub.publish(self.message)
-                            # self.rate.sleep()
-                        elif classID == 2:
-                            print("Increase Volume(Thumbs up)")
-                            self.message.data='up'
-                            self.gesture_pub.publish(self.message)
-                            # self.rate.sleep()                            
-                            # if (twist.twist.linear.x )<= 45.0:
-                            #     twist.twist.linear.x -= -2.0
 
-                        elif classID == 3:
-                            print("Decrease Volume (Thumbs Down)")
-                            # if (twist.twist.linear.x )>= -45:
-                            #     twist.twist.linear.x += -2.0
-                            self.message.data='down'
-                            self.gesture_pub.publish(self.message)
-                            # self.rate.sleep()
-                            
-
-                        elif classID == 5:
-                            print("Stop (Palm)")
-                            self.message.data='palm'
-                            self.gesture_pub.publish(self.message)
-                            # self.rate.sleep()
-                            
-                        elif classID == 8:
-                            print("Pause (Fist)")
-                            self.message.data='fist'
-                            self.gesture_pub.publish(self.message)
-                            # self.rate.sleep()
-                        
-
-                        # else:
-                        #     twist.twist.linear.y = 10.0
-                        #     time.sleep(0.5)
-                        #     twist.twist.linear.y = 0.0
-                        #     time.sleep(0.5)
-                        #     twist.twist.linear.y = -10.0
-                        #     time.sleep(0.5)
-
-                        className = classNames[classID]
-                        print(className)   
+                        # className = classNames[classID]
+                        # print(className)
+                    self.setChanged(classID)    
                 cv2.imshow('MediaPipe Hands', cv2.flip(image, 1))
                 cv2.waitKey(1)   
             time.sleep(0.1)         
+
+#created by sushant
+class YoutubeBehavior(Observer):
+    gestureID = 0
+    className=""
+    def __init__(self):
+        print ("Mirror Behavior ",threading.current_thread())
+
+
+    def update(self, subject: Subject) -> None:
+        self.gestureID = subject._state
+        self.youtube_output()
+
+    def youtube_output(self):
+        
+        gestureID = self.gestureID
+        if gestureID == 1:
+            print("Play (Victiory Peace)")
+            self.message='PLAY'
+            displayController.youtubeAction(self.message)
+
+
+        elif gestureID == 2:
+            print("Increase Volume(Thumbs up)")
+            self.message='RAISE'
+            displayController.youtubeAction(self.message)
+
+        elif gestureID == 3:
+            print("Decrease Volume (Thumbs Down)")
+            self.message='LOwER'
+            displayController.youtubeAction(self.message)
+
+
+        elif gestureID == 5:
+            print("Stop (Palm)")
+            self.message='STOP'
+            displayController.youtubeAction(self.message)
+
+        elif gestureID == 8:
+            print("Pause (Fist)")
+            self.message='PAUSE'
+            displayController.youtubeAction(self.message)
+        pass   
+
+
+# created by sushant
+
+class Display_Schema:
+    global killer
+    def __init__(self, sb_guesture_publisher):
+        print ("Display Schema ",threading.current_thread())
+        self.sb_guesture_publisher = sb_guesture_publisher
+        self.display_command = ""
+        x = threading.Thread(target=self.youtube_video_control, args=())
+        x.start()
+        
+        
+    
+    def youtubeAction(self, action):
+        self.display_command = action
+        
+        # self.motor_control()
+    # def inProgress(self):
+    #     return self.motor_pos != self.global_goal
+
+    def youtube_video_control(self):
+            print ("youtube video control thread: ",threading.current_thread())
+            while not killer.kill_now:
+                if self.display_command != "":
+                    
+                    self.sb_guesture_publisher.publish(self.display_command)
+                    self.display_command = ""
+                time.sleep(0.1)  
+
+
 
 
                 
@@ -629,56 +687,109 @@ class FaceCartographer(Observer, Subject):
                 self.setChanged(face_features) 
             time.sleep(0.01) 
 
-
+class AttentionBehavior (Observer):
+    isClap = False
+    def __init__(self):
+        print ("Attention Behavior ",threading.current_thread())
+        x = threading.Thread(target=self.seek_attention, args=())
+        x.start()
+    def update(self, subject: Subject) -> None:
+        if globals.dance_enabled > 0:
+            return
+        if(subject._state == True):
+            self.isClap = True
+        else:
+            self.isClap = False
+    def seek_attention(self):
+        while not killer.kill_now:
+            if(self.isClap):
+                
+                rand = random.randint(0,9)
+                print("---------------------------- seeking attention", rand)
+                if(rand % 2 == 0):
+                    self.movement_1()
+                else:
+                    self.movement_2()
+                
+                self.isClap = False
+            time.sleep(0.1)
+    def movement_1(self):
+        sb_motor_0.move([5,35,15,5],20)
+        while(sb_motor_0.inProgress() and not killer.kill_now):
+            time.sleep(0.1)
+        
+        sb_motor_0.move([5,-35,-15,-5],20)
+        while(sb_motor_0.inProgress() and not killer.kill_now):
+            time.sleep(0.1)
+        sb_motor_0.move([0,0,0,0],5)
+        # while(sb_motor_0.inProgress() and not killer.kill_now):
+        #     time.sleep(0.1)
+    def movement_2(self):
+        sb_motor_0.move([5,15,15,25],20)
+        while(sb_motor_0.inProgress() and not killer.kill_now):
+            time.sleep(0.1)
+        
+        sb_motor_0.move([-5,-15,-15,-25],20)
+        while(sb_motor_0.inProgress() and not killer.kill_now):
+            time.sleep(0.1)
+        sb_motor_0.move([0,0,0,0],5)
+        # while(sb_motor_0.inProgress() and not killer.kill_now):
+        #     time.sleep(0.1)
 
 class MirrorBehavior (Observer):
+
     nose = 0
     ear_distance=0
     def __init__(self):
         print ("Mirror Behavior ",threading.current_thread())
+        x = threading.Thread(target=self.motor_output, args=())
+        x.start()
 
     def update(self, subject: Subject) -> None:
         if globals.dance_enabled > 0:
             return
+        # self.new_face_params = subject._face_params
         self.nose = subject._face_params.nose
         self.ear_distance = subject._face_params.ear_distance
-        self.motor_output()
+        # self.motor_output()
 
     def motor_output(self):
+        while not killer.kill_now:
+            if(self.nose != -1 and  self.ear_distance != -1):
+                # self.previous_face_params = self.new_face_params
 
-        current_x=sb_motor_0.motor_pos[1]
-        current_y=sb_motor_0.motor_pos[0]
+                
+                current_x=sb_motor_0.motor_pos[1]
+                current_y=sb_motor_0.motor_pos[0]
 
-        if self.nose<0.35:
-            if current_x-6>=-12:
-                current_x=current_x-6
-        elif self.nose>0.65:
-            if current_x+6<=12:
-                current_x=current_x+6
-        print("dist is ", self.ear_distance,"  state is ",globals.face_pos)
-        if globals.face_pos==2:
-            if self.ear_distance<0.22:
-                globals.face_pos=0
-        
-        if globals.face_pos==0:
-            if self.ear_distance>0.23 and current_y==0:
-                current_y= +9
-                globals.face_pos=1
-        elif globals.face_pos==1:
-            if self.ear_distance<0.22:
-                current_y=0
-                globals.face_pos=0
-            elif self.ear_distance>0.4:
-                current_y=0
-                globals.face_pos=2
+                if self.nose<0.35:
+                    if current_x-6>=-12:
+                        current_x=current_x-6
+                elif self.nose>0.65:
+                    if current_x+6<=12:
+                        current_x=current_x+6
+                print("dist is ", self.ear_distance,"  state is ",globals.face_pos)
+                if globals.face_pos==2:
+                    if self.ear_distance<0.22:
+                        globals.face_pos=0
+                
+                if globals.face_pos==0:
+                    if self.ear_distance>0.23:
+                        current_y= +9
+                        globals.face_pos=1
+                elif globals.face_pos==1:
+                    if self.ear_distance<0.22:
+                        current_y=0
+                        globals.face_pos=0
+                    elif self.ear_distance>0.4:
+                        current_y=0
+                        globals.face_pos=2
 
-        sb_motor_0.move([current_y,current_x,sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
-        
-        pass
+                sb_motor_0.move([current_y,current_x,sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
+                self.nose = -1
+                self.ear_distance = -1
 
-        
-
-    
+            time.sleep(0.1)
 
 
 class GracefulKiller:
@@ -796,12 +907,12 @@ class DancePerformance():
         # self.motors = motors
         self.danceSteps = []
         self.run = False
+        self.stop = False
         self.freeStyle = FreeStyle(None)
         # self.sb_number = sb_number
         self.sb_motor = sb_motor
         # self.sb_motors = 0
-        x = threading.Thread(target=self.execute, args=())
-        x.start()
+        
     
     
 
@@ -810,6 +921,11 @@ class DancePerformance():
         dance_clock = 0
         self.run = True
         # self.execute()
+        x = threading.Thread(target=self.execute, args=())
+        x.start()
+    def stop_dance(self):
+        self.run = False
+
     def addDanceStep(self, danceStep, time):
         self.danceSteps.append([danceStep, time])
         # self.sb_motors = danceStep.motors
@@ -840,7 +956,9 @@ class DancePerformance():
                 time.sleep(0.1)
                 pass
                 
-            dance.perform()
+            dance.perform(not self.run)
+            if(not self.run):
+                    return
         globals.dance_enabled = globals.dance_enabled - 1
         print("============================================ Thank you For Watching !!! ================================")
         print("                                                  Hope you Enjoyed                 ")
@@ -852,6 +970,7 @@ class DanceStep:
     def __init__(self, motor):
         self.motor = motor
         self.steps = []
+        self.stop = False
     def addMoves(self, step):
         self.steps.append(step)
     # def motion_in_progress(self):
@@ -860,7 +979,7 @@ class DanceStep:
     #             return True
     #     return False    
         
-    def perform(self):
+    def perform(self, stop):
         count = 0
         for step in self.steps:
             print("..... performing step #",count, step );
@@ -870,6 +989,8 @@ class DanceStep:
             count = count + 1
             while(self.motor.inProgress() and not killer.kill_now):
                 time.sleep(0.1)
+                if(stop):
+                    return
                 pass
 
 class FreeStyle(DanceStep):
@@ -933,13 +1054,19 @@ class DanceBehavior(Observer):
 
     def update(self, subject: Subject) -> None:
         # print("is there a clap? ",subject._state)
-        if(subject._state == True and globals.dance_enabled == 0):
+        if(subject._state == 1 and globals.dance_enabled == 0):
             globals.dance_enabled = 4
             print("...................................................................................DanceBehavior detected start signal")
             self.sb0_dancePerformance.start_dance()
             self.sb1_dancePerformance.start_dance()
             self.sb2_dancePerformance.start_dance()
             self.sb3_dancePerformance.start_dance()
+        if(subject._state == 5 and globals.dance_enabled > 0):
+            self.sb0_dancePerformance.stop_dance()
+            self.sb1_dancePerformance.stop_dance()
+            self.sb2_dancePerformance.stop_dance()
+            self.sb3_dancePerformance.stop_dance()
+            globals.dance_enabled = 0
 
     def dancePerformance(self):
         self.danceChoreograph0(self.sb0_dancePerformance)
@@ -1254,7 +1381,7 @@ class DanceBehavior(Observer):
 def clock_update(event):
     global dance_clock
     dance_clock = dance_clock + time_rate
-    print("                                                                                                 clock updated", dance_clock)
+    # print("                                                                                                 clock updated", dance_clock)
 
 
 if __name__ == '__main__':
@@ -1274,14 +1401,22 @@ if __name__ == '__main__':
 
     
     
-    talk = rospy.Publisher('/talker', String, queue_size=1)
+    # talk = rospy.Publisher('/talker', String, queue_size=1)
+    gesture_pub = rospy.Publisher("/talker", String, queue_size=10)
+    displayController = Display_Schema(gesture_pub)
 
-
+    attentionBehavior = AttentionBehavior()
     danceBehavior = DanceBehavior(sb_motor_0, sb_motor_1, sb_motor_2, sb_motor_3)
     clapCartographer = ClapCartographer()
-    clapCartographer.addObserver(danceBehavior)
+    clapCartographer.addObserver(attentionBehavior)
+    
 
     handGestureCartographer = HandGestureCartographer()
+
+    youtubeBehavior = YoutubeBehavior()
+
+    handGestureCartographer.addObserver(youtubeBehavior)
+    handGestureCartographer.addObserver(danceBehavior)
 
     cameraPerception = CameraPerception()
     cameraObserver = CameraObserver()
