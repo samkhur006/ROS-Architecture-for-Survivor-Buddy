@@ -335,7 +335,7 @@ class HandGestureCartographer(Observer):
                 self.previous_image = self.new_image
                 np_arr = np.frombuffer(VideoData.data,np.uint8)
                 cv_frame = cv2.imdecode(np_arr, 1)
-                image=cv2.resize(cv_frame,(120,120))
+                image=cv2.resize(cv_frame,(200,200))
                 x, y, c = image.shape
 
                 # To improve performance, optionally mark the image as not writeable to
@@ -392,6 +392,7 @@ class HandGestureCartographer(Observer):
                             self.message.data='down'
                             self.gesture_pub.publish(self.message)
                             # self.rate.sleep()
+                            
 
                         elif classID == 5:
                             print("Stop (Palm)")
@@ -514,7 +515,6 @@ class ClapCartographer(Observer, Subject):
                     self.setChanged(clap_detected) 
                 else:
                     self.setChanged(False)
-
             time.sleep(0.1)
 
 class Face_Params:
@@ -523,6 +523,7 @@ class Face_Params:
     def __init__(self) -> None:
         self.nose=0
         self.ear_distance=0
+
 
 
 def get_dist(a,b):
@@ -608,24 +609,24 @@ class FaceCartographer(Observer, Subject):
                 camera_input_data = self.new_image
                 self.previous_image = self.new_image
                 current_x=0
-            np_arr = np.frombuffer(camera_input_data.data,np.uint8)
-            image = cv2.imdecode(np_arr, 1)
-            face_features=[]
-            cv2.namedWindow("Image Window",1)
-            with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
-                results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                if results.detections:
-                    for detection in results.detections:
-                        nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
-                        left=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.LEFT_EAR_TRAGION)
-                        right=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.RIGHT_EAR_TRAGION)
-                        distance_between_ears=get_dist(left,right)
-                        current_x=nose.x
-            cv2.imshow("Image Window",image)
-            cv2.waitKey(1)
-            face_features.append(current_x)
-            face_features.append(distance_between_ears)
-            self.setChanged(face_features) 
+                np_arr = np.frombuffer(camera_input_data.data,np.uint8)
+                image = cv2.imdecode(np_arr, 1)
+                face_features=[]
+                # cv2.namedWindow("Image Window",1)
+                with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
+                    results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                    if results.detections:
+                        for detection in results.detections:
+                            nose=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.NOSE_TIP)
+                            left=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.LEFT_EAR_TRAGION)
+                            right=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.RIGHT_EAR_TRAGION)
+                            distance_between_ears=get_dist(left,right)
+                            current_x=nose.x
+                # cv2.imshow("Image Window",image)
+                # cv2.waitKey(1)
+                face_features.append(current_x)
+                face_features.append(distance_between_ears)
+                self.setChanged(face_features) 
             time.sleep(0.01) 
 
 
@@ -637,6 +638,8 @@ class MirrorBehavior (Observer):
         print ("Mirror Behavior ",threading.current_thread())
 
     def update(self, subject: Subject) -> None:
+        if globals.dance_enabled > 0:
+            return
         self.nose = subject._face_params.nose
         self.ear_distance = subject._face_params.ear_distance
         self.motor_output()
@@ -654,18 +657,18 @@ class MirrorBehavior (Observer):
                 current_x=current_x+6
         print("dist is ", self.ear_distance,"  state is ",globals.face_pos)
         if globals.face_pos==2:
-            if self.ear_distance<0.23:
+            if self.ear_distance<0.22:
                 globals.face_pos=0
         
         if globals.face_pos==0:
             if self.ear_distance>0.23 and current_y==0:
-                current_y=-9
+                current_y= +9
                 globals.face_pos=1
         elif globals.face_pos==1:
-            if self.ear_distance<0.23 and current_y<0:
+            if self.ear_distance<0.22:
                 current_y=0
                 globals.face_pos=0
-            elif self.ear_distance>0.3:
+            elif self.ear_distance>0.4:
                 current_y=0
                 globals.face_pos=2
 
@@ -707,7 +710,7 @@ pause=True
 my_time=time.time()
 is_confused=0
 
-dance_clock = time.time()
+dance_clock = 0
 
 class Motor_Schema:
     global killer
@@ -838,6 +841,7 @@ class DancePerformance():
                 pass
                 
             dance.perform()
+        globals.dance_enabled = globals.dance_enabled - 1
         print("============================================ Thank you For Watching !!! ================================")
         print("                                                  Hope you Enjoyed                 ")
         
@@ -929,7 +933,8 @@ class DanceBehavior(Observer):
 
     def update(self, subject: Subject) -> None:
         # print("is there a clap? ",subject._state)
-        if(subject._state == True):
+        if(subject._state == True and globals.dance_enabled == 0):
+            globals.dance_enabled = 4
             print("...................................................................................DanceBehavior detected start signal")
             self.sb0_dancePerformance.start_dance()
             self.sb1_dancePerformance.start_dance()
@@ -1249,7 +1254,7 @@ class DanceBehavior(Observer):
 def clock_update(event):
     global dance_clock
     dance_clock = dance_clock + time_rate
-    # print("                  clock updated", dance_clock)
+    print("                                                                                                 clock updated", dance_clock)
 
 
 if __name__ == '__main__':
@@ -1300,7 +1305,7 @@ if __name__ == '__main__':
     mirrorBehavior = MirrorBehavior()
     faceCartographer = FaceCartographer()
 
-    # cameraPerception.addObserver(faceCartographer)
+    cameraPerception.addObserver(faceCartographer)
     faceCartographer.addObserver(mirrorBehavior)
 
 
