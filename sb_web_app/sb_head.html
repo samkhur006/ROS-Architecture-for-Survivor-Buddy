@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" href="https://unpkg.com/css-baseline/css/4.css" />
+		<!-- Compiled and minified CSS -->
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
+		/>
+		<!-- Compiled and minified JavaScript -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+		<!-- <script src="https://static.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script> -->
+		<script src="./eventemitter2.js"></script>
+		<script src="./roslib.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r71/three.min.js"></script>
+		<script>
+			// these two lines contain the base64-encoded images to turn on- and off the application.
+			var RECORD_ON =
+				"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiDAAAASFBMVEUAAAAAAADMzMz/AABmZmaZmZnMAABmAACZAAAzAAAzMzP/MzPMZmaZMzPMMzP/MwD/////Zmb/ZgBmMzPMmZmZZmb/mQD/mZlxvxKlAAAAAXRSTlMAQObYZgAAAAFiS0dEAIgFHUgAAAAJcEhZcwAACxMAAAsTAQCanBgAAAAHdElNRQffCBIMMyVTqZicAAACK0lEQVRIx43W63aDIAwA4KJJhVjrVtfu/d90kASIFlzzp5fDd5KAgJdLJwa8fB6YYojBXz4EQw1EgNPxAGDHqzpDBqDV0EN5DDoToIhagkSAOwb2DIEBRLEWINJf2DQspCQ7AwiUy0M69pEFyCR/xZCl4cTE/CgQtYoU2xZC2J6YiXNHA3ai4uApRwjaj+RBs+JWpKHLcrstiyAz3WjFUFJMk4/jf39+fqPyCdXJLmmwzi4L7+8a8avPhlwtzSQRcY0x3+9z+mSz8bSY0jRJWoEirtdxlM+IluczEXA7In+FbVm8jJ9jqIpmC2nBSjc6XXFZwvS83XwC4/wdI5pRDLczUE6TSJoPisRrDhNCkqFSmTY/pN6ZpIo05pguGZk1qawSKL3PxnznNIGHkDSjK1/q4tZNnlFI0CdNCeiTooRjXVfTTV5PJnggWTxejzNCDfJ6PdYWGd6zXHOWR7ewXi/jOrYJ8PbCvFH8cSGFlBmjQoZC/Dup68LbjAmWR39fWaOu1MRFCNg0rWesrCQTU1njuaxPZW1lX1neYRXwvgy1rkLQGN2WZVOWJHFPDZBPMUTXMVZAvZ+gnolqfBlvT6VEymGJelzryedL7M4+MFdTvIwAnDn8JnPCupbgO7KaeijHLz1xNKzseBVweTPketEQQgDagLAhssFWIl6P5j3OpK5QzgB8lXVufiFoFkl/n71fZIPlDeYsxa64+l7yH1BFUAv6ANgZ7wz/A295IO9de7kCAAAAAElFTkSuQmCC";
+			var RECORD_OFF =
+				"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAFVBMVEVvcm0AAAAzMzNmZmbMzMyZmZn///8pcdebAAAAAXRSTlMAQObYZgAAAAFiS0dEAIgFHUgAAAAJcEhZcwAACxMAAAsTAQCanBgAAAAHdElNRQffCBINBR5qfIr6AAABv0lEQVQ4y22UQZaCMAyGffo8QED3Q9E9EDmAYzrrgZIbzJv7H2GStFLLmA22H/+fWNLsdi/hd2+DeSHP/A6Qhg9duX/AhVJskAGPoyLsNmACjVrQkMFe3u0hxUKPj5W0BqoWh0YeSxbtb2o1xvyNGPqnCMkLYPr6/SEOABcKqeKbF8mV2UE1KgHysbyDStaQTCKKR8GpYHDoIJVuJ3hcyJZVK1ZanFbuv5XQIypaRBycoupkdkx3kzhBg3NOMl2j3UJ9LS+6NRCufSLyq9KtqBFVPWmi4+KBoUbZkQoUiMHniZTcYYYqmylpjUgBdyVohu2s5HxOpDdiSWbNA3UlZR/lBBqw/CYyIkenRL9ZqjfVFgln0vJckiaTkIkvNYXba57WZRLku03xPHPo2sj9DamVLFuiFZ2pE2IfbkNOQnY32hBdXrR7RoLSzhrhYWQqRNYj/NB281MhsrZiVGJtuYpiw7E16RiajGIrYrxdGHooo0ZMdxQ3BJ8XErHfSrrnxcamlOB65Qu/K+bbLWTOXrxKDKU/JU3I/DoQDsjMgwmYyyFyGNkGj4ykgOXgET8bSf+AqAZ1DIhvBhwivu7/ATYxlvOTH50RAAAAAElFTkSuQmCC";
+
+			var cameraTimer, audioTimer;
+
+			// setup connection to the ROS server and prepare the topic
+			var ros;
+			var imageTopic;
+			var audioTopic;
+
+			var audioMessage = new ROSLIB.Message({
+				data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			});
+		</script>
+	</head>
+
+	<!-- declare interface and the canvases that will display the video and the still shots -->
+	<body>
+		<div
+			style="
+				display: flex;
+				position: relative;
+				flex-direction: column;
+				width: 26rem;
+				padding: 2rem;
+				box-shadow: 0 4px 5px 0 rgba(0, 0, 0, 0.14),
+					0 1px 10px 0 rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+				margin: 1rem;
+				border-radius: 12px;
+			"
+		>
+			<!-- <button
+				id="startstop"
+				style="outline-width: 0; background-color: transparent; border: none"
+			>
+				<img id="startstopicon" src="" />
+			</button> -->
+			<div
+				class="switch"
+				style="
+					margin-bottom: 2rem;
+					width: 100%;
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				"
+			>
+				<h5>Activate Camera</h5>
+				<label>
+					<input id="startstopicon" type="checkbox" value="" />
+					<span class="lever"></span>
+				</label>
+			</div>
+			<!-- two inputs, one for ip address and one for the port -->
+			<label for="ip">IP Address</label>
+			<input id="ip" type="text" placeholder="IP Address" />
+
+			<label for="port">Port</label>
+			<input id="port" type="text" placeholder="Port" value="8080" />
+
+			<button
+				id="connectButton"
+				class="btn-large waves-effect waves-light"
+				style="margin-top: 1rem"
+			>
+				Connect to ROSbridge Server
+			</button>
+		</div>
+
+		<video muted style="display: none" autoplay id="video"></video>
+		<canvas style="display: none" id="canvas"></canvas>
+		<br />
+
+		<span
+			id="messageLog"
+			style="
+				padding: 1rem;
+				position: fixed;
+				right: 0;
+				top: 0;
+				height: 100vh;
+				overflow: auto;
+				width: 20rem;
+				background-color: whitesmoke;
+				border-left: 2px gray solid;
+				box-shadow: 0 4px 5px 0 rgba(0, 0, 0, 0.14),
+					0 1px 10px 0 rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+			"
+		>
+			(message log)
+		</span>
+<!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
+    <div id="player"></div>
+		<script>
+			// grab the elements
+			var startstopiconElement = document.getElementById("startstopicon")
+			var connectButton        = document.getElementById("connectButton");
+			var messageElement       = document.getElementById("messageLog");
+			var ip                   = document.getElementById("ip");
+			var port 				 = document.getElementById("port");
+			var canvas 				 = document.querySelector("#canvas")
+			
+			// startstopiconElement.setAttribute("src", RECORD_OFF);
+			const sendMessage = (message)=>{
+				messageElement.innerHTML += `<br>...<br>...<br>${message}`
+				messageElement.scrollTop = messageElement.scrollHeight
+			}
+			ip.value = "" + window.location.hostname;
+			
+			var hasRunOnce = false,
+				// video = document.querySelector("#video"),
+				width = 640,
+				height, // calculated once video stream size is known
+				cameraStream;
+
+			// request access to the video camera and start the video stream
+			async function cameraOn() {
+				if (!navigator.mediaDevices) {
+					sendMessage(`Error: check the URL<br>Make sure it has "https" and not "http"`)
+				} else {
+					
+					try {
+						cameraStream = await navigator.mediaDevices.getUserMedia({
+							video: true,
+							audio: true,
+						});
+						video.srcObject = cameraStream;
+						video.play();
+						video.onloadedmetadata = function (e) {
+							height = video.videoHeight / (video.videoWidth / width);
+							console.log(height, width);
+							video.setAttribute("width", width);
+							video.setAttribute("height", height);
+							canvas.setAttribute("width", width);
+							canvas.setAttribute("height", height);
+						};
+					} catch (error) {
+						sendMessage(`Looks like there was an issue connecting to the camera. Make sure this browser can actually connect to your camera (for example try logging into Zoom and using "Your Room" and try turning on the camera)`)
+						throw error
+					}
+					
+					try {
+						var audioCtx = new (window.AudioContext ||
+							window.webkitAudioContext)();
+						var source = audioCtx.createMediaStreamSource(cameraStream);
+
+						var bufferSize = 2048;
+						var recorder = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+
+						recorder.onaudioprocess = function (e) {
+							var input = e.inputBuffer.getChannelData(0);
+							var audioData = new Float32Array(input);
+							var msg = new ROSLIB.Message({
+								data: Array.from(audioData),
+							});
+							// console.log(msg);
+							audioMessage = msg;
+							// audioTopic.publish(audioMessage);
+						};
+
+						source.connect(recorder);
+						recorder.connect(audioCtx.destination);
+					} catch (error) {
+						sendMessage(`Looks like there was an issue connecting to the microphone. Make sure this browser can actually connect to your camera (for example try logging into Zoom and using "Your Room" and try turning on the camera)`)
+						throw error
+					}
+				}
+			}
+
+			function cameraOff() {
+				cameraStream.stop();
+				hasRunOnce = false;
+				takepicture(); // blank the screen to prevent last image from staying
+			}
+
+			// function that is run once scale the height of the video stream to match the configured target width
+			video.addEventListener(
+				"canplay",
+				function (ev) {
+					if (!hasRunOnce) {
+						height = video.videoHeight / (video.videoWidth / width);
+						video.setAttribute("width", width);
+						video.setAttribute("height", height);
+						canvas.setAttribute("width", width);
+						canvas.setAttribute("height", height);
+						hasRunOnce = true;
+					}
+				},
+				false
+			);
+
+			connectButton.addEventListener("click", function () {
+				var ipaddr = ip.value;
+				if (ipaddr == "") {
+					// default to localhost if no ip address is provided
+					ipaddr = window.location.hostname;
+					if (ipaddr == "localhost") {
+						ipaddr = "127.0.0.1"
+					}
+					if (ipaddr == "127.0.0.1") {
+						window.alert(`Note: your connection should be something other than localhost (aka 127.0.0.1).\n\nI'll still let you try with localhost but just note that the public facing address should be used instead.`)
+					}
+				}
+				var portVal = port.value;
+				const baseValue = ipaddr + ":" + portVal
+				var connUrl = "wss://" + baseValue;
+				console.log("Attempting to connect to: " + connUrl);
+				ros = new ROSLIB.Ros({
+					url: connUrl,
+				});
+				ros.on("connection", function () {
+					console.log("Connected to websocket server.");
+					sendMessage("Success!")
+				});
+
+				ros.on("error", function (error) {
+					console.log("Error connecting to websocket server: ", error);
+					sendMessage(`1. Make sure <code>roslaunch rb_server.launch</code> is running<br>2. Try opening this in a new tab:<br><a href="https://${baseValue}">https://${baseValue}</a><br>3. Click Advanced -> Accept Risk and Continue<br>4.Then re-run this test<br>`)
+				});
+
+				ros.on("close", function () {
+					console.log("Connection to websocket server closed.");
+				});
+
+				imageTopic = new ROSLIB.Topic({
+					ros: ros,
+					name: "/camera/image/compressed",
+					messageType: "sensor_msgs/CompressedImage",
+				});
+
+				audioTopic = new ROSLIB.Topic({
+					ros: ros,
+					name: "/audio",
+					messageType: "std_msgs/Float32MultiArray",
+				});
+				
+				
+     var listener = new ROSLIB.Topic({
+       ros : ros,
+       name : '/talker',
+       messageType : 'std_msgs/String'
+     });
+   
+     listener.subscribe(function(message) {
+     	timeval = player.getCurrentTime()
+       console.log('Received message on ' + listener.name + ': ' + message.data);
+       if(message.data == 'PLAY'){
+	       playVideo();
+	}
+	if(message.data == 'PAUSE'){
+	       pauseVideo();
+	}
+	if(message.data == 'STOP'){
+	       stopVideo();
+	}
+	if(message.data == 'RAISE'){
+	       raiseVolume();
+	}
+	if(message.data == 'LOWER'){
+	       lowerVolume();
+	}
+	if(message.data == 'FORWARD'){
+		
+	       player.seekTo(timeval+10,0)
+	}
+	if(message.data == 'BACKWARD'){
+	       player.seekTo(timeval-10,0)
+	}
+     });
+				
+			});
+
+			// function that is run by trigger several times a second
+			// takes snapshot of video to canvas, encodes the images as base 64 and sends it to the ROS topic
+			function takepicture() {
+				if (imageTopic) {
+					canvas.width = width;
+					canvas.height = height;
+
+					canvas
+						.getContext("2d")
+						.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+					var data = canvas.toDataURL("image/jpeg");
+					var a = document.createElement("a");
+					a.href = data;
+					var imageMessage = new ROSLIB.Message({
+						format: "jpeg",
+						data: data.replace("data:image/jpeg;base64,", ""),
+					});
+
+					imageTopic.publish(imageMessage);
+				}
+			}
+
+			function publishaudio() {
+				if (audioTopic) {
+					audioTopic.publish(audioMessage);
+				}
+			}
+
+			// turning on and off the timer that triggers sending pictures and imu information several times a second
+			startstopiconElement.addEventListener(
+				"click",
+				function (ev) {
+					if (cameraTimer == null) {
+						// ros.connect("ws://" + window.location.hostname + ":9090");
+						cameraOn();
+						cameraTimer = setInterval(function () {
+							takepicture();
+						}, 100); // publish an image 4 times per second
+						audioTimer = setInterval(function () {
+							publishaudio();
+						}, 16); // publish an audio 62.5 times per second
+						// imuTimer = setInterval(function () {
+						// 	imusnapshot();
+						// }, 100); // publish an IMU message 10 times per second
+					} else {
+						ros.close();
+						cameraOff();
+						clearInterval(cameraTimer);
+						// clearInterval(imuTimer);
+						cameraTimer = null;
+						// imuTimer = null;
+					}
+				},
+				false
+			);
+		
+      // 2. This code loads the IFrame Player API code asynchronously.
+      var tag = document.createElement('script');
+
+      tag.src = "https://www.youtube.com/iframe_api";
+      var firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      // 3. This function creates an <iframe> (and YouTube player)
+      //    after the API code downloads.
+      var player;
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+          height: '390',
+          width: '640',
+          videoId: 'CLeZyIID9Bo',
+          playerVars: {
+            'playsinline': 1
+          },
+          events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+          }
+        });
+      }
+	//   <iframe width="1280" height="720" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="Rick Astley - Never Gonna Give You Up (Official Music Video)" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+	  
+      // 4. The API will call this function when the video player is ready.
+      function onPlayerReady(event) {
+        event.target.playVideo();
+      }
+
+      // 5. The API calls this function when the player's state changes.
+      //    The function indicates that when playing a video (state=1),
+      //    the player should play for six seconds and then stop.
+      var done = false;
+      function onPlayerStateChange(event) {
+        if (event.data == YT.PlayerState.PLAYING && !done) {
+          // setTimeout(stopVideo, 3000);
+          done = true;
+        }
+      }
+      function stopVideo() {
+        player.stopVideo();
+      }
+      function playVideo() {
+        player.playVideo();
+      }
+      function pauseVideo() {
+        player.pauseVideo();
+      }
+      function raiseVolume() {
+      	volume = player.getVolume()
+        player.setVolume(volume + 10)
+      }
+      function lowerVolume() {
+      	volume = player.getVolume()
+        player.setVolume(volume - 10)
+      }
+   
+		</script>
+		
+	</body>
+</html>
