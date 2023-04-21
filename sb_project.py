@@ -143,6 +143,12 @@ class Subject(ABC):
         Notify all observers about an event.
         """
         pass
+    @abstractmethod
+    def notify(self) -> None:
+        """
+        Notify all observers about an event.
+        """
+        pass
 
 
 class CameraPerception(Subject):
@@ -409,7 +415,7 @@ class YoutubeBehavior(Observer):
     gestureID = 0
     className=""
     def __init__(self):
-        print ("Mirror Behavior ",threading.current_thread())
+        print ("Youtube Behavior ",threading.current_thread())
 
 
     def update(self, subject: Subject) -> None:
@@ -689,7 +695,8 @@ class FaceCartographer(Observer, Subject):
 
 class AttentionBehavior (Observer):
     isClap = False
-    def __init__(self):
+    def __init__(self, sb_motor):
+        self.sb_motor = sb_motor
         print ("Attention Behavior ",threading.current_thread())
         x = threading.Thread(target=self.seek_attention, args=())
         x.start()
@@ -714,25 +721,25 @@ class AttentionBehavior (Observer):
                 self.isClap = False
             time.sleep(0.1)
     def movement_1(self):
-        sb_motor_0.move([5,35,15,5],20)
-        while(sb_motor_0.inProgress() and not killer.kill_now):
-            time.sleep(0.1)
+        self.sb_motor.move([5,15,15,5],20)
+        # while(self.sb_motor.inProgress() and not killer.kill_now):
+        time.sleep(0.1)
         
-        sb_motor_0.move([5,-35,-15,-5],20)
-        while(sb_motor_0.inProgress() and not killer.kill_now):
-            time.sleep(0.1)
-        sb_motor_0.move([0,0,0,0],5)
+        self.sb_motor.move([5,-15,-15,-5],20)
+        # while(self.sb_motor.inProgress() and not killer.kill_now):
+        time.sleep(0.1)
+        self.sb_motor.move([0,0,0,0],5)
         # while(sb_motor_0.inProgress() and not killer.kill_now):
         #     time.sleep(0.1)
     def movement_2(self):
-        sb_motor_0.move([5,15,15,25],20)
-        while(sb_motor_0.inProgress() and not killer.kill_now):
-            time.sleep(0.1)
+        self.sb_motor.move([5,5,5,0],20)
+        # while(self.sb_motor.inProgress() and not killer.kill_now):
+        time.sleep(0.1)
         
-        sb_motor_0.move([-5,-15,-15,-25],20)
-        while(sb_motor_0.inProgress() and not killer.kill_now):
-            time.sleep(0.1)
-        sb_motor_0.move([0,0,0,0],5)
+        self.sb_motor.move([-5,-5,-5,0],20)
+        # while(self.sb_motor.inProgress() and not killer.kill_now):
+        time.sleep(0.1)
+        self.sb_motor.move([0,0,0,0],5)
         # while(sb_motor_0.inProgress() and not killer.kill_now):
         #     time.sleep(0.1)
 
@@ -740,7 +747,8 @@ class MirrorBehavior (Observer):
 
     nose = 0
     ear_distance=0
-    def __init__(self):
+    def __init__(self, sb_motor):
+        self.sb_motor = sb_motor
         print ("Mirror Behavior ",threading.current_thread())
         x = threading.Thread(target=self.motor_output, args=())
         x.start()
@@ -753,43 +761,62 @@ class MirrorBehavior (Observer):
         self.ear_distance = subject._face_params.ear_distance
         # self.motor_output()
 
+    def move_robot(self, axis_0, axis_1):
+        
+        self.sb_motor.move([axis_0,axis_1,self.sb_motor.motor_pos[2],self.sb_motor.motor_pos[3]] )
+
     def motor_output(self):
         while not killer.kill_now:
             if(self.nose != -1 and  self.ear_distance != -1):
                 # self.previous_face_params = self.new_face_params
+                right_boundary = 0.65
+                left_boundary = 0.35
+                left_movement_limit = -15
+                right_movement_limit = 15
+
+                axis_1=self.sb_motor.motor_pos[1]
+                axis_0=self.sb_motor.motor_pos[0]
 
                 
-                current_x=sb_motor_0.motor_pos[1]
-                current_y=sb_motor_0.motor_pos[0]
-
-                if self.nose<0.35:
-                    if current_x-6>=-12:
-                        current_x=current_x-6
-                elif self.nose>0.65:
-                    if current_x+6<=12:
-                        current_x=current_x+6
+                if self.nose<left_boundary:
+                    new_axis_1_position = axis_1 - 6 
+                    if new_axis_1_position>=left_movement_limit:
+                        axis_1 = axis_1 - 6
+                        self.move_robot(axis_0, axis_1)
+                elif self.nose>right_boundary:
+                    new_axis_1_position = axis_1 + 6 
+                    if new_axis_1_position <= right_movement_limit:
+                        axis_1 = axis_1 + 6
+                        self.move_robot(axis_0, axis_1)
                 print("dist is ", self.ear_distance,"  state is ",globals.face_pos)
+
+
                 if globals.face_pos==2:
                     if self.ear_distance<0.22:
                         globals.face_pos=0
                 
                 if globals.face_pos==0:
                     if self.ear_distance>0.23:
-                        current_y= +9
+                        axis_0= +9
                         globals.face_pos=1
+                        self.move_robot(axis_0, axis_1)
                 elif globals.face_pos==1:
                     if self.ear_distance<0.22:
-                        current_y=0
+                        axis_0=0
                         globals.face_pos=0
+                        self.move_robot(axis_0, axis_1)
                     elif self.ear_distance>0.4:
-                        current_y=0
+                        axis_0=0
                         globals.face_pos=2
-
-                sb_motor_0.move([current_y,current_x,sb_motor_0.motor_pos[2],sb_motor_0.motor_pos[3]] )
+                        self.move_robot(axis_0, axis_1)
+                
+                
                 self.nose = -1
                 self.ear_distance = -1
 
             time.sleep(0.1)
+
+        
 
 
 class GracefulKiller:
@@ -1405,7 +1432,7 @@ if __name__ == '__main__':
     gesture_pub = rospy.Publisher("/talker", String, queue_size=10)
     displayController = Display_Schema(gesture_pub)
 
-    attentionBehavior = AttentionBehavior()
+    attentionBehavior = AttentionBehavior(sb_motor_1)
     danceBehavior = DanceBehavior(sb_motor_0, sb_motor_1, sb_motor_2, sb_motor_3)
     clapCartographer = ClapCartographer()
     clapCartographer.addObserver(attentionBehavior)
@@ -1437,7 +1464,7 @@ if __name__ == '__main__':
     # globals.sb_motor_publisher_0 = rospy.Publisher('/sb_0_cmd_state', TwistStamped, queue_size=1)
     # globals.sb_motor_0 = Motor_Schema(globals.sb_motor_publisher_0);
     #Mirror Behavior Main Code
-    mirrorBehavior = MirrorBehavior()
+    mirrorBehavior = MirrorBehavior(sb_motor_1)
     faceCartographer = FaceCartographer()
 
     cameraPerception.addObserver(faceCartographer)
