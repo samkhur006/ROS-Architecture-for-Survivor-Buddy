@@ -105,7 +105,7 @@ recognizer = vision.GestureRecognizer.create_from_options(options)
 images = []
 results = []
 
-CLAP_THREASHOLD = 100
+CLAP_THREASHOLD = 200
 
 
 ##########HAND GUESTURE DETECTION
@@ -686,11 +686,16 @@ class FaceCartographer(Observer, Subject):
                             right=mp_face_detection.get_key_point(detection, mp_face_detection.FaceKeyPoint.RIGHT_EAR_TRAGION)
                             distance_between_ears=get_dist(left,right)
                             current_x=nose.x
+                            face_features.append(current_x)
+                            face_features.append(distance_between_ears)
+                            self.setChanged(face_features) 
+                    else:
+                        # self.setChanged([0, 0])
+                        pass
                 # cv2.imshow("Image Window",image)
                 # cv2.waitKey(1)
-                face_features.append(current_x)
-                face_features.append(distance_between_ears)
-                self.setChanged(face_features) 
+                
+                
             time.sleep(0.01) 
 
 class AttentionBehavior (Observer):
@@ -757,6 +762,7 @@ class MirrorBehavior (Observer):
         if globals.dance_enabled > 0:
             return
         # self.new_face_params = subject._face_params
+        
         self.nose = subject._face_params.nose
         self.ear_distance = subject._face_params.ear_distance
         # self.motor_output()
@@ -769,24 +775,27 @@ class MirrorBehavior (Observer):
         while not killer.kill_now:
             if(self.nose != -1 and  self.ear_distance != -1):
                 # self.previous_face_params = self.new_face_params
-                right_boundary = 0.65
-                left_boundary = 0.35
-                left_movement_limit = -15
-                right_movement_limit = 15
+                right_boundary = 0.55
+                left_boundary = 0.45
+                left_movement_limit = -25
+                right_movement_limit = 25
+                
+                delta = 1
+                rest_axis_0 = -15
 
                 axis_1=self.sb_motor.motor_pos[1]
                 axis_0=self.sb_motor.motor_pos[0]
 
                 
-                if self.nose<left_boundary:
-                    new_axis_1_position = axis_1 - 6 
+                if self.nose>right_boundary:
+                    new_axis_1_position = axis_1 -  delta
                     if new_axis_1_position>=left_movement_limit:
-                        axis_1 = axis_1 - 6
+                        axis_1 = axis_1 - delta
                         self.move_robot(axis_0, axis_1)
-                elif self.nose>right_boundary:
-                    new_axis_1_position = axis_1 + 6 
+                elif self.nose<left_boundary:
+                    new_axis_1_position = axis_1 + delta 
                     if new_axis_1_position <= right_movement_limit:
-                        axis_1 = axis_1 + 6
+                        axis_1 = axis_1 + delta
                         self.move_robot(axis_0, axis_1)
                 print("dist is ", self.ear_distance,"  state is ",globals.face_pos)
 
@@ -797,16 +806,16 @@ class MirrorBehavior (Observer):
                 
                 if globals.face_pos==0:
                     if self.ear_distance>0.23:
-                        axis_0= +9
+                        axis_0= +5
                         globals.face_pos=1
                         self.move_robot(axis_0, axis_1)
                 elif globals.face_pos==1:
                     if self.ear_distance<0.22:
-                        axis_0=0
+                        axis_0 = rest_axis_0
                         globals.face_pos=0
                         self.move_robot(axis_0, axis_1)
                     elif self.ear_distance>0.4:
-                        axis_0=0
+                        axis_0 = rest_axis_0
                         globals.face_pos=2
                         self.move_robot(axis_0, axis_1)
                 
@@ -858,6 +867,7 @@ class Motor_Schema:
         self.motor_pos = [0,0,0,0]
         self.global_goal = [0,0,0,0]
         self.global_speed = 10
+        self.move([-15,0,0,0])
         x = threading.Thread(target=self.motor_control, args=())
         x.start()
         
